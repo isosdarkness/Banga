@@ -1,0 +1,2361 @@
+import math
+from pygame import mixer
+import pygame
+import random
+import button
+from constants import *
+
+pygame.mixer.pre_init(44100, -16, 2, 512)
+mixer.init()
+pygame.init()
+# fps
+clock = pygame.time.Clock()
+fps = 60
+
+screen_width = 600 # chiều rộng
+screen_height = 650 # chiều dài
+
+screen = pygame.display.set_mode((screen_width, screen_height)) # màn hình
+pygame.display.set_caption('Bắn Gà') # tên game
+
+timebossdie = 0
+time = 500
+timereturn = 100
+flash_time = 0
+flash_time1 = 0
+game_over = False
+moving_left = False # trái
+moving_right = False # phải
+moving_up = False # lên
+moving_down = False # xuống
+page = 0 # trang
+
+# màu
+black = pygame.color.THECOLORS["black"]
+white = pygame.color.THECOLORS["white"]
+red = pygame.color.THECOLORS["red"]
+green = pygame.color.THECOLORS["green"]
+blue = pygame.color.THECOLORS["blue"]
+yellow = pygame.color.THECOLORS["yellow"]
+pink = pygame.color.THECOLORS["pink"]
+color = [green, yellow, pink]
+color1 = random.randint(0, 255)
+color2 = random.randint(0, 255)
+color3 = random.randint(0, 255)
+colorList = [color1, color2, color3]
+
+
+start_game = -1 # bắt đầu game
+stop_game = False # dừng game
+game_reset = False # reset game
+
+# ảnh trong control phần menu
+chick1 = pygame.image.load('img/tile/0.png').convert_alpha()
+chick1_img = pygame.transform.scale(chick1, (int(chick1.get_width() * 1.2), int(chick1.get_height() * 1.2)))
+chick2 = pygame.image.load('img/tile/4.png').convert_alpha()
+chick2_img = pygame.transform.scale(chick2, (int(chick2.get_width() * 1), int(chick2.get_height() * 1)))
+boss1_img = pygame.image.load('img/tile/3.png').convert_alpha()
+boss2 = pygame.image.load('img/tile/2.png').convert_alpha()
+boss2_img = pygame.transform.scale(boss2, (int(boss2.get_width() * 1.2), int(boss2.get_height() * 1.2)))
+meteor_img = pygame.image.load('img/tile/11.png').convert_alpha()
+box_img = pygame.image.load('img/Item/box.png').convert_alpha()
+item0_img = pygame.image.load('img/Item/item0.png').convert_alpha()
+item1_img = pygame.image.load('img/Item/item1.png').convert_alpha()
+item2_img = pygame.image.load('img/Item/item2.png').convert_alpha()
+item3_img = pygame.image.load('img/Item/item3.png').convert_alpha()
+item4_img = pygame.image.load('img/Item/item4.png').convert_alpha()
+
+# ảnh mạng và boom trong game
+heart = pygame.image.load('img/heart.png').convert_alpha()
+heart_img = pygame.transform.scale(heart, (int(heart.get_width() * 1), int(heart.get_height() * 1)))
+boom = pygame.image.load('img/bom.png').convert_alpha()
+boom_img = pygame.transform.scale(boom, (int(boom.get_width() * 0.5), int(boom.get_height() * 0.5)))
+
+# ảnh nút bấm phần menu
+start_img = pygame.image.load('img/Start Button.png').convert_alpha()
+exit_img = pygame.image.load('img/Exit Button.png').convert_alpha()
+resume_img = pygame.image.load('img/Resume Button.png').convert_alpha()
+continue_img = pygame.image.load('img/Continue Button.png').convert_alpha()
+back_img = pygame.image.load('img/Back Button.png').convert_alpha()
+control_img = pygame.image.load('img/Controls Button.png').convert_alpha()
+arrow1_img = pygame.image.load('img/arrow1.png').convert_alpha()
+arrow2_img = pygame.image.load('img/arrow2.png').convert_alpha()
+bg1 = pygame.image.load("img/bg/bg_07.png")
+bg = pygame.image.load("img/bg/bg" + str(random.randint(1, 7)) + ".png")
+
+# nhạc
+explosion_fx = pygame.mixer.Sound("img/explosion.wav")
+explosion_fx.set_volume(0.25)
+explosion2_fx = pygame.mixer.Sound("img/explosion2.wav")
+explosion2_fx.set_volume(0.25)
+gamemusic_fx = pygame.mixer.Sound("img/m" + str(random.randint(1, 5)) + ".wav")
+gamemusic_fx.set_volume(0.25)
+laser_fx = pygame.mixer.Sound("img/laser.wav")
+laser_fx.set_volume(0.25)
+lose_fx = pygame.mixer.Sound("img/lose.wav")
+lose_fx.set_volume(0.25)
+win_fx = pygame.mixer.Sound("img/win.wav")
+win_fx.set_volume(0.25)
+item_fx = pygame.mixer.Sound("img/coin.wav")
+item_fx.set_volume(0.25)
+
+# phông chữ
+font = pygame.font.SysFont('Futura', 30)
+font_big = pygame.font.SysFont('Lucida Sans', 24)
+
+
+def draw_text(text, font, text_col, x, y):
+    img = font.render(text, True, text_col)
+    screen.blit(img, (x, y))
+
+
+def draw_bg():
+    screen.blit(bg1, (0, 0))
+
+
+def draw_bg1():
+    screen.blit(bg, (0, 0))
+
+
+def draw_bg2():
+    screen.fill(red)
+
+
+def draw_bg3():
+    screen.fill(colorList)
+
+
+class Boss(pygame.sprite.Sprite):
+    def __init__(self, x, y, scale):
+        pygame.sprite.Sprite.__init__(self)
+        self.scale = scale# phóng to , thu nhỏ hình ảnh
+        self.alive = True
+        # load ảnh
+        img = pygame.image.load(f'img/Boss2/Idle/6.png')
+        self.image = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y - 20)
+        # máu
+        self.health = 200
+        self.remaining = 200
+        # hướng
+        self.direction_x = 1
+        self.direction_y = 1
+        # thời gian cuối cùng bắn
+        self.last_boss_shot = pygame.time.get_ticks()
+        self.live = 3 # mạng
+        # thời gian bắt đầu di chuyển
+        self.timereset = 200
+        self.time = 200
+        self.timer = 200
+
+    def update(self):
+        self.check_alive()
+        if self.alive:
+            # hiển thị thanh máu
+            pygame.draw.rect(screen, red, (self.rect.x, (self.rect.top - 10), self.rect.width, 10))
+            if self.remaining > 0:
+                pygame.draw.rect(screen, green, (
+                    self.rect.x, (self.rect.top - 10), int(self.rect.width * (self.remaining / self.health)), 10))
+            # sau khi boss chết
+            if self.remaining <= 0 and self.live == 3:
+                # hiệu ứng nổ
+                explosion_fx.play()
+                explosion = Explosion(boss.rect.centerx, boss.rect.centery, 5)
+                explosion_group.add(explosion)
+                # update lại hình ảnh , máu của boss, mạng của boss -1
+                self.reset()
+                self.live -= 1
+                self.health = 300
+                self.remaining = 300
+                img = pygame.image.load(f'img/Boss2/Idle/0.png')
+                self.image = pygame.transform.scale(img, (int(img.get_width() * 1.5), int(img.get_height() * 1.5)))
+            # sau khi boss chết
+            if self.remaining <= 0 and self.live == 2:
+                explosion_fx.play()
+                explosion = Explosion(boss.rect.centerx, boss.rect.centery, 5)
+                explosion_group.add(explosion)
+                self.reset()
+                self.health = 400
+                self.remaining = 400
+                self.live -= 1
+                img = pygame.image.load(f'img/Boss2/Idle/3.png')
+                self.image = pygame.transform.scale(img, (int(img.get_width() * 1.5), int(img.get_height() * 1.5)))
+            if self.remaining <= 0 and self.live == 1:
+                self.live -= 1
+                self.kill()
+        if pygame.sprite.spritecollide(self, bullet_group, True, pygame.sprite.collide_mask):
+            if self.timereset < 0 and self.timer == 0:
+                self.remaining -= 10
+                if spaceship.crit > 0:
+                    if random.randint(spaceship.crit, 100) == 100:
+                        self.remaining -= 20
+        for boom in boom_group:
+            if pygame.sprite.spritecollide(self, boom_group, True):
+                explosion_fx.play()
+                explosions = Explosions(boom.rect.centerx, boom.rect.centery, 4)
+                explosions_group.add(explosions)
+                if self.timereset < 0 and self.timer == 0:
+                    self.remaining -= 100
+                for meteor in meteor_group:
+                    if abs(meteor.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor.rect.centery - boom.rect.centery) < 350:
+                        meteor.health -= 10
+                for meteor1 in meteor_group1:
+                    if abs(meteor1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor1.rect.centery - boom.rect.centery) < 350:
+                        meteor1.health -= 10
+            else:
+                if boom.time <= 1:
+                    if self.timereset < 0 and self.timer == 0:
+                        if abs(self.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                self.rect.centery - boom.rect.centery) < 350:
+                            self.remaining -= 100
+        if self.remaining <= 0:
+            Bonuss = [Item1, Item2, Item3, Item4, Item0]
+            bonuss = random.choice(Bonuss)(self.rect.centerx, self.rect.centery)
+            item_group.add(bonuss)
+
+    def shoot(self):
+        time_now = pygame.time.get_ticks()
+        if self.live == 3:
+            if 100 < self.remaining <= 200:
+                boss_cooldown = 500
+                if time_now - self.last_boss_shot > boss_cooldown:
+                    attacking_player = random.choice(boss_group.sprites())
+                    boss_bullet1 = Boss2_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom, 0)
+                    boss_bullet_group.add(boss_bullet1)
+                    self.last_boss_shot = time_now
+            if self.remaining <= 100:
+                boss_cooldown = 1000
+                if time_now - self.last_boss_shot > boss_cooldown:
+                    for i in range(10):
+                        attacking_player = random.choice(boss_group.sprites())
+                        boss_bullet1 = Boss2_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom,
+                                                     i * 36)
+                        boss_bullet_group.add(boss_bullet1)
+                    self.last_boss_shot = time_now
+        if self.live == 2:
+            if 150 < self.remaining <= 300:
+                boss_cooldown = 250
+                if time_now - self.last_boss_shot > boss_cooldown:
+                    attacking_player = random.choice(boss_group.sprites())
+                    boss_bullet1 = Boss1_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom, 0)
+                    boss_bullet_group.add(boss_bullet1)
+                    self.last_boss_shot = time_now
+            if self.remaining <= 150:
+                boss_cooldown = 1500
+                if time_now - self.last_boss_shot > boss_cooldown:
+                    for i in range(10):
+                        attacking_player = random.choice(boss_group.sprites())
+                        boss_bullet1 = Boss1_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom,
+                                                     i * 36)
+                        boss_bullet_group.add(boss_bullet1)
+                    self.last_boss_shot = time_now
+        if self.live == 1:
+            if 200 < self.remaining <= 400:
+                boss_cooldown = 200
+                if time_now - self.last_boss_shot > boss_cooldown:
+                    attacking_player = random.choice(boss_group.sprites())
+                    boss_bullet1 = Boss_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom, 0)
+                    boss_bullet_group.add(boss_bullet1)
+                    self.last_boss_shot = time_now
+            if self.remaining <= 200:
+                boss_cooldown = 1000
+                if time_now - self.last_boss_shot > boss_cooldown:
+                    for i in range(10):
+                        attacking_player = random.choice(boss_group.sprites())
+                        boss_bullet1 = Boss_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom, i * 36)
+                        boss_bullet_group.add(boss_bullet1)
+                    self.last_boss_shot = time_now
+
+    def reset(self):
+        self.timereset = 200
+        self.rect.x = int(screen_width / 2) - 120
+        self.rect.y = screen_height - 700
+        self.timer = 80
+        self.alive = True
+
+    def move(self):
+        dx = 0
+        dy = 0
+        if not boss1.alive:
+            if self.live == 3 and self.timereset < 0:
+                if self.remaining <= 200:
+                    dx += self.direction_x * 2
+                    if self.rect.left + dx > screen_width:
+                        dx = screen_width - self.rect.left
+                        self.direction_x *= -1
+                    if self.rect.right + dx < 0:
+                        dx = - self.rect.right
+                        self.direction_x *= -1
+                if self.remaining <= 150:
+                    dx += self.direction_x * 3
+                    if self.rect.left + dx > screen_width:
+                        dx = screen_width - self.rect.left
+                        self.direction_x *= -1
+                    if self.rect.right + dx < 0:
+                        dx = - self.rect.right
+                        self.direction_x *= -1
+                if self.remaining <= 100:
+                    dx += self.direction_x * 4
+                    if self.rect.left + dx > screen_width:
+                        dx = screen_width - self.rect.left
+                        self.direction_x *= -1
+                    if self.rect.right + dx < 0:
+                        dx = - self.rect.right
+                        self.direction_x *= -1
+            if self.live == 2 and self.timereset < 0:
+
+                dx += self.direction_x * 4
+                dy += self.direction_y * 2
+                if self.rect.left + dx > screen_width:
+                    dx = screen_width - self.rect.left
+                    self.direction_x *= -1
+                if self.rect.right + dx < 0:
+                    dx = - self.rect.right
+                    self.direction_x *= -1
+                if self.rect.bottom + dy > 500:
+                    dy = 500 - self.rect.bottom
+                    self.direction_y *= -1
+                if self.rect.top + dy < 0:
+                    dy = - self.rect.top
+                    self.direction_y *= -1
+            if self.live == 1 and self.timereset < 0:
+
+                dx += self.direction_x * 6
+                dy += self.direction_y * 4
+
+                if self.rect.left + dx > screen_width:
+                    dx = screen_width - self.rect.left
+                    self.direction_x *= -1
+                if self.rect.right + dx < 0:
+                    dx = - self.rect.right
+                    self.direction_x *= -1
+                if self.rect.top + dy > screen_height:
+                    dy = screen_height - self.rect.top
+                    self.direction_y *= -1
+                if self.rect.bottom + dy < 0:
+                    dy = - self.rect.bottom
+                    self.direction_y *= -1
+
+        self.rect.x += dx
+        self.rect.y += dy
+
+    def auto_walk(self):
+        if not boss1.alive:
+            dy = 0
+            self.timer -= 1
+            self.timereset -= 1
+            dy += 1.5
+            if self.timer <= 0:
+                self.timer = 0
+                self.rect.y -= 0.5
+            self.rect.y += dy
+
+    def check_alive(self):
+        if self.live == 0:
+            self.alive = False
+
+
+class Boss1(pygame.sprite.Sprite):
+    def __init__(self, x, y, scale):
+        pygame.sprite.Sprite.__init__(self)
+        self.scale = scale
+        self.alive = True
+        self.last_shot = pygame.time.get_ticks()
+        self.health = 200
+        self.remaining = 200
+        self.direction_x = 1
+        self.direction_y = 1
+        self.last_boss_shot = pygame.time.get_ticks()
+        self.timer = 150
+        self.live = 1
+        self.timereset = 150
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0
+        self.update_time = pygame.time.get_ticks()
+
+        # load all images for the players
+        animation_types = ['Idle', 'Death']
+        for animation in animation_types:
+            # reset temporary list of images
+            temp_list = []
+            # count number of files in the folder
+            num_of_frames = len(os.listdir(f'img/Boss1/{animation}'))
+            for i in range(num_of_frames):
+                img = pygame.image.load(f'img/Boss1/{animation}/{i}.png')
+                img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
+                temp_list.append(img)
+            self.animation_list.append(temp_list)
+
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.rect.center = (x, y - 20)
+
+    def update(self):
+        self.check_alive()
+        self.update_animation()
+        pygame.draw.rect(screen, red, (self.rect.x, (self.rect.top - 10), self.rect.width, 10))
+        if self.remaining > 0:
+            pygame.draw.rect(screen, green, (
+                self.rect.x, (self.rect.top - 10), int(self.rect.width * (self.remaining / self.health)), 10))
+        if pygame.sprite.spritecollide(self, bullet_group, True, pygame.sprite.collide_mask):
+            if self.timereset < 0 and self.timer == 0:
+                self.remaining -= 10
+                if spaceship.crit > 0:
+                    if random.randint(spaceship.crit, 100) == 100:
+                        self.remaining -= 20
+        for boom in boom_group:
+            if pygame.sprite.spritecollide(self, boom_group, True):
+                explosion_fx.play()
+                explosions = Explosions(boom.rect.centerx, boom.rect.centery, 4)
+                explosions_group.add(explosions)
+                if self.timereset < 0 and self.timer == 0:
+                    self.remaining -= 100
+                for meteor in meteor_group:
+                    if abs(meteor.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor.rect.centery - boom.rect.centery) < 350:
+                        meteor.health -= 10
+                for meteor1 in meteor_group1:
+                    if abs(meteor1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor1.rect.centery - boom.rect.centery) < 350:
+                        meteor1.health -= 10
+            else:
+                if boom.time <= 1:
+                    if self.timereset < 0 and self.timer == 0:
+                        if abs(self.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                self.rect.centery - boom.rect.centery) < 350:
+                            self.remaining -= 100
+        if self.remaining <= 0:
+            Bonus0 = [Item1, Item2, Item3, Item4, Item0]
+            bonus0 = random.choice(Bonus0)(self.rect.centerx, self.rect.centery)
+            item_group.add(bonus0)
+
+    def shoot(self):
+        time_now = pygame.time.get_ticks()
+        if 150 < self.remaining <= 200:
+            boss_cooldown = 500
+            if time_now - self.last_boss_shot > boss_cooldown:
+                attacking_player = random.choice(boss1_group.sprites())
+                boss_bullet2 = Boss4_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom, 0)
+                boss1_bullet_group.add(boss_bullet2)
+                self.last_boss_shot = time_now
+        if 100 < self.remaining <= 150:
+            boss_cooldown1 = 1000
+            if time_now - self.last_boss_shot > boss_cooldown1:
+                for i in range(10):
+                    attacking_player = random.choice(boss1_group.sprites())
+                    boss_bullet2 = Boss4_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom, i * 36)
+                    boss1_bullet_group.add(boss_bullet2)
+                self.last_boss_shot = time_now
+        if self.remaining <= 100:
+            boss_cooldown1 = 1500
+            if time_now - self.last_boss_shot > boss_cooldown1:
+                for i in range(15):
+                    attacking_player = random.choice(boss1_group.sprites())
+                    boss_bullet2 = Boss4_Bullets(attacking_player.rect.centerx, attacking_player.rect.bottom, i * 24)
+                    boss1_bullet_group.add(boss_bullet2)
+                self.last_boss_shot = time_now
+
+    def move(self):
+        dx = 0
+        dy = 0
+        if 170 < self.remaining <= 200:
+            if self.timereset < 0:
+                dx += self.direction_x * 2
+                if self.rect.left + dx > screen_width:
+                    dx = screen_width - self.rect.left
+                    self.direction_x *= -1
+                if self.rect.right + dx < 0:
+                    dx = - self.rect.right
+                    self.direction_x *= -1
+        if 140 < self.remaining <= 170:
+            if self.timereset < 0:
+                dx += self.direction_x * 4
+                if self.rect.left + dx > screen_width:
+                    dx = screen_width - self.rect.left
+                    self.direction_x *= -1
+                if self.rect.right + dx < 0:
+                    dx = - self.rect.right
+                    self.direction_x *= -1
+        if self.remaining <= 140:
+            if self.timereset < 0:
+                dx += self.direction_x * 6
+                if self.rect.left + dx > screen_width:
+                    dx = screen_width - self.rect.left
+                    self.direction_x *= -1
+                if self.rect.right + dx < 0:
+                    dx = - self.rect.right
+                    self.direction_x *= -1
+
+        self.rect.x += dx
+        self.rect.y += dy
+
+    def update_animation(self):
+        # update animation
+        ANIMATION_COOLDOWN = 100
+        # update image depending on current frame
+        self.image = self.animation_list[self.action][self.frame_index]
+        # check if enough time has passed since the last update
+        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
+            self.update_time = pygame.time.get_ticks()
+            self.frame_index += 1
+        # if the animation has run out the reset back to the start
+        if self.frame_index >= len(self.animation_list[self.action]):
+            if self.action == 1:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+
+    def update_action(self, new_action):
+        # check if the new action is different to the previous one
+        if new_action != self.action:
+            self.action = new_action
+            # update the animation settings
+            self.frame_index = 0
+            self.update_time = pygame.time.get_ticks()
+
+    def auto_walk(self):
+        dy = 0
+        if not enemy1.alive:
+            self.timer -= 1
+            self.timereset -= 1
+            dy += 1.5
+            if self.timer <= 0:
+                self.timer = 0
+                self.rect.y -= 0.5
+        self.rect.y += dy
+
+    def check_alive(self):
+        if self.remaining <= 0:
+            self.remaining = 0
+            self.alive = False
+            explosion_fx.play()
+            explosion = Explosion(self.rect.centerx, self.rect.centery, 4)
+            explosion_group.add(explosion)
+
+
+class Boss_Bullets(pygame.sprite.Sprite):
+    def __init__(self, x, y, bend):
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load(f'img/bulletx.png')
+        self.image = pygame.transform.scale(img, (int(img.get_width() * 1), int(img.get_height() * 1)))
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+        self.bend = bend
+
+    def update(self):
+        if 200 < boss.remaining <= 400:
+            self.rect.y += 10
+        if boss.remaining <= 200:
+            self.rect.y += -math.sin(self.bend * math.pi / 180) * 12
+            self.rect.x += math.cos(self.bend * math.pi / 180) * 12
+        if self.rect.top > screen_height or self.rect.bottom < 0 or boss.live < 1:
+            self.kill()
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            if spaceship.timereset < 0:
+                self.kill()
+                # reduce spaceship health
+                spaceship.remaining -= 3
+                explosion_fx.play()
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+
+
+class Boss1_Bullets(pygame.sprite.Sprite):
+    def __init__(self, x, y, bend):
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load(f'img/bullet99.png')
+        self.image = pygame.transform.scale(img, (int(img.get_width() * 1), int(img.get_height() * 2)))
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+        self.bend = bend
+
+    def update(self):
+        if 150 < boss.remaining <= 300:
+            self.rect.y += 10
+        if boss.remaining <= 150:
+            self.rect.y += -math.sin(self.bend * math.pi / 180) * 12
+            self.rect.x += math.cos(self.bend * math.pi / 180) * 12
+        if self.rect.top > screen_height or boss.live < 2:
+            self.kill()
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            if spaceship.timereset < 0:
+                self.kill()
+                # reduce spaceship health
+                spaceship.remaining -= 2
+                explosion_fx.play()
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+
+
+class Boss2_Bullets(pygame.sprite.Sprite):
+    def __init__(self, x, y, bend):
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load(f'img/bullet98.png')
+        self.image = pygame.transform.scale(img, (int(img.get_width() * 1), int(img.get_height() * 1)))
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+        self.time = 50
+        self.bend = bend
+
+    def update(self):
+        dy = 0
+        if 100 < boss.remaining <= 200:
+            dy += 10
+        if boss.remaining <= 100:
+            dy += 4
+            self.time -= 1
+            if self.time <= 0:
+                dy = 0
+                self.rect.y += -math.sin(self.bend * math.pi / 180) * 10
+                self.rect.x += math.cos(self.bend * math.pi / 180) * 10
+
+        if self.rect.top > screen_height or boss.live < 3:
+            self.kill()
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            if spaceship.timereset < 0:
+                self.kill()
+                # reduce spaceship health
+                spaceship.remaining -= 1
+                explosion_fx.play()
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+        self.rect.y += dy
+
+
+class Boss4_Bullets(pygame.sprite.Sprite):
+    def __init__(self, x, y, bend):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/bullet5.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+        self.bend = bend
+        self.time = 16
+
+    def update(self):
+        dx = 0
+        dy = 0
+        self.time -= 1
+        if 150 < boss1.remaining <= 200:
+            self.rect.y += 10
+        if 100 < boss1.remaining <= 150:
+            if self.time > 0:
+                self.rect.y += -math.sin(self.bend * math.pi / 180) * 12
+                self.rect.x += math.cos(self.bend * math.pi / 180) * 12
+            else:
+                self.rect.y += 10
+        if boss1.remaining <= 100:
+            self.rect.y += -math.sin(self.bend * math.pi / 180) * 12
+            self.rect.x += math.cos(self.bend * math.pi / 180) * 12
+        if self.rect.top > screen_height + 300 or boss1.remaining <= 0:
+            self.kill()
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            if spaceship.timereset < 0:
+                self.kill()
+                # reduce spaceship health
+                spaceship.remaining -= 1
+                explosion_fx.play()
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+        self.rect.x += dx
+        self.rect.y += dy
+
+
+class Explosion(pygame.sprite.Sprite):
+    def __init__(self, x, y, size):
+        pygame.sprite.Sprite.__init__(self)
+        self.images = []
+        for num in range(1, 6):
+            img = pygame.image.load(f"img/exp{num}.png")
+            if size == 1:
+                img = pygame.transform.scale(img, (20, 20))
+            if size == 2:
+                img = pygame.transform.scale(img, (40, 40))
+            if size == 3:
+                img = pygame.transform.scale(img, (160, 160))
+            if size == 4:
+                img = pygame.transform.scale(img, (300, 300))
+            if size == 5:
+                img = pygame.transform.scale(img, (400, 400))
+            if size == 6:
+                img = pygame.transform.scale(img, (2500, 2500))
+            # add the image to the list
+            self.images.append(img)
+        self.index = 0
+        self.image = self.images[self.index]
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+        self.counter = 0
+
+    def update(self):
+        explosion_speed = 3
+        # update explosion animation
+        self.counter += 1
+
+        if self.counter >= explosion_speed and self.index < len(self.images) - 1:
+            self.counter = 0
+            self.index += 1
+            self.image = self.images[self.index]
+
+        # if the animation is complete, delete explosion
+        if self.index >= len(self.images) - 1 and self.counter >= explosion_speed:
+            self.kill()
+
+
+class Spaceship(pygame.sprite.Sprite):
+    def __init__(self, x, y, scale, maxhealth):
+        pygame.sprite.Sprite.__init__(self)
+        self.scale = scale
+        self.alive = True
+        self.health = maxhealth
+        self.remaining = maxhealth
+        self.damage = 1
+        self.cooldown = 500
+        self.crit = 0
+        self.special = 50
+        self.bulletspeed = 5
+        self.timer = 30
+        self.last_shot = pygame.time.get_ticks()
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0
+        self.update_time = pygame.time.get_ticks()
+        self.live = 5
+        self.timereset = 200
+
+        # load all images for the players
+        animation_types = ['Idle', 'Death']
+        for animation in animation_types:
+            # reset temporary list of images
+            temp_list = []
+            # count number of files in the folder
+            num_of_frames = len(os.listdir(f'img/Player0/{animation}'))
+            for i in range(num_of_frames):
+                img = pygame.image.load(f'img/Player0/{animation}/{i}.png')
+                img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
+                temp_list.append(img)
+            self.animation_list.append(temp_list)
+
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y + 50)
+
+    def update(self):
+        self.update_animation()
+        self.check_alive()
+        pygame.draw.rect(screen, red, (self.rect.x, (self.rect.bottom + 10), self.rect.width, 10))
+        if self.remaining > 0:
+            pygame.draw.rect(screen, green, (
+                self.rect.x, (self.rect.bottom + 10), int(self.rect.width * (self.remaining / self.health)), 10))
+        if pygame.sprite.spritecollide(self, boss_group, False, pygame.sprite.collide_mask):
+            boss.direction_y *= -1
+            boss.direction_x *= -1
+            if self.timereset < 0 and boss.alive:
+                explosion_fx.play()
+                self.remaining -= 5
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 3)
+                explosion_group.add(explosion)
+        if pygame.sprite.spritecollide(self, boss1_group, False, pygame.sprite.collide_mask):
+            if self.timereset < 0:
+                explosion_fx.play()
+                self.remaining -= 5
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 3)
+                explosion_group.add(explosion)
+        if pygame.sprite.spritecollide(self, enemy_group, False, pygame.sprite.collide_mask):
+            if self.timereset < 0:
+                explosion_fx.play()
+                self.remaining -= 5
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 3)
+                explosion_group.add(explosion)
+        if pygame.sprite.spritecollide(self, enemy_group1, False, pygame.sprite.collide_mask):
+            if self.timereset < 0:
+                explosion_fx.play()
+                self.remaining -= 5
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 3)
+                explosion_group.add(explosion)
+
+    def move(self, moving_left, moving_right, moving_up, moving_down):
+        # reset movement variables
+        dx = 0
+        dy = 0
+        # assign movement variables if moving left or right
+        if moving_left:
+            dx = -5
+        if moving_right:
+            dx = 5
+        if moving_up:
+            dy = -5
+        if moving_down:
+            dy = 5
+        if self.rect.right + dx > screen_width:
+            dx = screen_width - self.rect.right
+        if self.rect.left + dx < 0:
+            dx = - self.rect.left
+        if self.rect.bottom + dy > screen_height:
+            dy = screen_height - self.rect.bottom
+        if self.rect.top + dy < 0:
+            dy = -self.rect.top
+        # update rectangle position
+        self.rect.x += dx
+        self.rect.y += dy
+
+    def reset(self):
+        self.timereset = 200
+        self.rect.x = int(screen_width / 2) - 25
+        self.rect.y = screen_height - 75
+        self.remaining = 5
+        self.health = 5
+        self.timer = 30
+        self.damage -= 1
+        self.crit -= 10
+        self.cooldown += 50
+        self.special -= 0
+        if self.cooldown >= 500:
+            self.cooldown = 500
+        if self.crit <= 0:
+            self.crit = 0
+        if self.damage <= 1:
+            self.damage = 1
+        self.alive = True
+
+    def shoot(self):
+        time_now = pygame.time.get_ticks()
+        key = pygame.key.get_pressed()
+        if key[pygame.K_SPACE] and time_now - self.last_shot > self.cooldown:
+            laser_fx.play()
+            if self.damage == 1:
+                bullet = Bullets(self.rect.centerx, self.rect.top, 0)
+                bullet_group.add(bullet)
+                self.last_shot = time_now
+            if self.damage == 2:
+                bullet0 = Bullets(self.rect.centerx - 10, self.rect.top, 0)
+                bullet = Bullets(self.rect.centerx + 10, self.rect.top, 0)
+                bullet_group.add(bullet0, bullet)
+                self.last_shot = time_now
+            if self.damage == 3:
+                bullet0 = Bullets(self.rect.centerx - 20, self.rect.top, 0)
+                bullet1 = Bullets(self.rect.centerx, self.rect.top - 10, 0)
+                bullet = Bullets(self.rect.centerx + 20, self.rect.top, 0)
+                bullet_group.add(bullet0, bullet1, bullet)
+                self.last_shot = time_now
+            if self.damage == 4:
+                for i in range(-3, 4, 2):
+                    bullet = Bullets(self.rect.centerx, self.rect.top, i * 12)
+                    bullet_group.add(bullet)
+                self.last_shot = time_now
+            if self.damage == 5:
+                for i in range(-2, 3):
+                    bullet = Bullets(self.rect.centerx, self.rect.top, i * 15)
+                    bullet_group.add(bullet)
+                self.last_shot = time_now
+            if self.damage == 6:
+                for i in range(-5, 6, 2):
+                    bullet = Bullets(self.rect.centerx, self.rect.top, i * 7.6)
+                    bullet_group.add(bullet)
+                self.last_shot = time_now
+            if self.damage == 7:
+                for i in range(-3, 4):
+                    bullet = Bullets(self.rect.centerx, self.rect.top, i * 11.5)
+                    bullet_group.add(bullet)
+                self.last_shot = time_now
+
+    def fire(self):
+        time_now = pygame.time.get_ticks()
+        key = pygame.key.get_pressed()
+        if key[pygame.K_f] and time_now - self.last_shot > self.cooldown:
+            self.special -= 1
+            if self.special >= 0:
+                boom = Booms(self.rect.centerx + random.randint(-30, 30), self.rect.top, 0.5)
+                boom_group.add(boom)
+                self.last_shot = time_now
+
+    def update_animation(self):
+        # update animation
+        ANIMATION_COOLDOWN = 100
+        # update image depending on current frame
+        self.image = self.animation_list[self.action][self.frame_index]
+        # check if enough time has passed since the last update
+        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
+            self.update_time = pygame.time.get_ticks()
+            self.frame_index += 1
+        # if the animation has run out the reset back to the start
+        if self.frame_index >= len(self.animation_list[self.action]):
+            if self.action == 1:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+
+    def update_action(self, new_action):
+        # check if the new action is different to the previous one
+        if new_action != self.action:
+            self.action = new_action
+            # update the animation settings
+            self.frame_index = 0
+            self.update_time = pygame.time.get_ticks()
+
+    def auto_walk(self):
+        dy = 0
+        self.timer -= 1
+        dy -= 0.5
+        self.timereset -= 1
+        if self.timer <= 0:
+            self.timer = 0
+            self.rect.y += 1
+        self.rect.y += dy
+
+    def check_alive(self):
+        if self.remaining <= 0:
+            self.remaining = 0
+            self.alive = False
+            explosion_fx.play()
+            explosion = Explosion(self.rect.centerx, self.rect.centery, 3)
+            explosion_group.add(explosion)
+
+
+class Bullets(pygame.sprite.Sprite):
+    def __init__(self, x, y, bend):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/bullet1/dan" + str(random.randint(1, 10)) + ".png")
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+        self.bend = bend
+
+    def update(self):
+        self.rect.y -= math.cos(self.bend * math.pi / 180) * 15
+        self.rect.x += math.tan(self.bend * math.pi / 180) * 15
+        if pygame.sprite.spritecollide(self, enemy_group, False, pygame.sprite.collide_mask):
+            if enemy.timereset < 0:
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+                explosion_fx.play()
+        if pygame.sprite.spritecollide(self, enemy_group1, False, pygame.sprite.collide_mask):
+            if enemy1.timereset < 0:
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+                explosion_fx.play()
+        if pygame.sprite.spritecollide(self, boss_group, False, pygame.sprite.collide_mask):
+            if boss.timereset < 0:
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+                explosion_fx.play()
+        if pygame.sprite.spritecollide(self, boss1_group, False, pygame.sprite.collide_mask):
+            if boss1.timereset < 0:
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+                explosion_fx.play()
+        if self.rect.bottom < 0:
+            self.kill()
+
+
+class Booms(pygame.sprite.Sprite):
+    def __init__(self, x, y, scale):
+        pygame.sprite.Sprite.__init__(self)
+        self.scale = scale
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0
+        self.update_time = pygame.time.get_ticks()
+        self.time = 50
+        self.alive = True
+        # load all images for the players
+        animation_types = ['Idle']
+        for animation in animation_types:
+            # reset temporary list of images
+            temp_list = []
+            # count number of files in the folder
+            num_of_frames = len(os.listdir(f'img/Boom/{animation}'))
+            for i in range(num_of_frames):
+                img = pygame.image.load(f'img/Boom/{animation}/{i}.png')
+                img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
+                temp_list.append(img)
+            self.animation_list.append(temp_list)
+
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.initSound = pygame.mixer.Sound("img/fwrun.wav")
+        pygame.mixer.Sound.play(self.initSound)
+
+    def update(self):
+        self.update_animation()
+        self.time -= 1
+        self.rect.y -= 5
+        if self.time <= 0:
+            explosion_fx.play()
+            self.kill()
+            explosions = Explosions(self.rect.centerx, self.rect.centery, 4)
+            explosions_group.add(explosions)
+
+    def update_animation(self):
+        # update animation
+        ANIMATION_COOLDOWN = 10
+        # update image depending on current frame
+        self.image = self.animation_list[self.action][self.frame_index]
+        # check if enough time has passed since the last update
+        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
+            self.update_time = pygame.time.get_ticks()
+            self.frame_index += 1
+        # if the animation has run out the reset back to the start
+        if self.frame_index >= len(self.animation_list[self.action]):
+            if self.action == 1:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+
+    def update_action(self, new_action):
+        # check if the new action is different to the previous one
+        if new_action != self.action:
+            self.action = new_action
+            # update the animation settings
+            self.frame_index = 0
+            self.update_time = pygame.time.get_ticks()
+
+
+class Explosions(pygame.sprite.Sprite):
+    def __init__(self, x, y, size):
+        pygame.sprite.Sprite.__init__(self)
+        self.images = []
+        for num in range(0, 11):
+            img = pygame.image.load(f"img/Explode/b{num}.png")
+            if size == 1:
+                img = pygame.transform.scale(img, (20, 20))
+            if size == 2:
+                img = pygame.transform.scale(img, (40, 40))
+            if size == 3:
+                img = pygame.transform.scale(img, (160, 160))
+            if size == 4:
+                img = pygame.transform.scale(img, (650, 650))
+            # add the image to the list
+            self.images.append(img)
+        self.index = 0
+        self.image = self.images[self.index]
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+        self.counter = 0
+
+    def update(self):
+        explosion_speed = 3
+        # update explosion animation
+        self.counter += 1
+
+        if self.counter >= explosion_speed and self.index < len(self.images) - 1:
+            self.counter = 0
+            self.index += 1
+            self.image = self.images[self.index]
+
+        # if the animation is complete, delete explosion
+        if self.index >= len(self.images) - 1 and self.counter >= explosion_speed:
+            self.kill()
+
+
+class Box(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/Item/box.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.health = 1
+        self.flip = False
+        self.alive = True
+
+    def reset(self):
+        self.rect.x = random.randint(50, 550)
+        self.rect.y = -30000
+        self.health = 1
+        self.image = pygame.image.load("img/Item/box.png")
+
+    def update(self):
+        self.check_alive()
+        self.rect.y += 1
+        if pygame.sprite.spritecollide(self, bullet_group, False, pygame.sprite.collide_mask):
+            self.health -= 1
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            self.health -= 1
+        if self.health <= 0:
+            Bonus3 = [Item1, Item2, Item3, Item4, Item0]
+            bonus3 = random.choice(Bonus3)(self.rect.centerx, self.rect.centery)
+            item_group.add(bonus3)
+
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Item0(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/Item/item0.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.flip = False
+        self.health = 1
+        self.alive = True
+
+    def update(self):
+        self.check_alive()
+        self.rect.y += random.randint(1, 2)
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            item_fx.play()
+            self.health -= 1
+            spaceship.damage += 1
+            if spaceship.damage >= 7:
+                spaceship.damage = 7
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def reset(self):
+        self.rect.x = random.randint(50, 550)
+        self.rect.y = -35000
+        self.health = 1
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Item1(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/Item/item1.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.flip = False
+        self.health = 1
+        self.alive = True
+
+    def update(self):
+        self.check_alive()
+        self.rect.y += random.randint(2, 3)
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            item_fx.play()
+            self.health -= 1
+            spaceship.cooldown -= 100
+            if spaceship.cooldown <= 100:
+                spaceship.cooldown = 100
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def reset(self):
+        self.rect.x = random.randint(50, 550)
+        self.rect.y = -40000
+        self.health = 1
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Item2(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/Item/item2.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.flip = False
+        self.health = 1
+        self.alive = True
+
+    def update(self):
+        self.check_alive()
+        self.rect.y += random.randint(1, 2)
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            item_fx.play()
+            self.health -= 1
+            spaceship.remaining += 1
+            if spaceship.remaining >= 5:
+                spaceship.remaining = 5
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def reset(self):
+        self.rect.x = random.randint(50, 550)
+        self.rect.y = -45000
+        self.health = 1
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Item3(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/Item/item3.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.flip = False
+        self.health = 1
+        self.alive = True
+
+    def update(self):
+        self.check_alive()
+        self.rect.y += random.randint(1, 1)
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            item_fx.play()
+            self.health -= 1
+            spaceship.special += 1
+            if spaceship.special >= 5:
+                spaceship.special = 5
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def reset(self):
+        self.rect.x = random.randint(50, 550)
+        self.rect.y = -50000
+        self.health = 1
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Item4(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("img/Item/item4.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.flip = False
+        self.health = 1
+        self.alive = True
+
+    def update(self):
+        self.check_alive()
+        self.rect.y += random.randint(1, 2)
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            item_fx.play()
+            self.health -= 1
+            spaceship.crit += 100
+            if spaceship.crit >= 100:
+                spaceship.crit = 100
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def reset(self):
+        self.rect.x = random.randint(50, 550)
+        self.rect.y = -55000
+        self.health = 1
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Meteor(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.images = []
+        self.index = 0
+        self.images.append(pygame.image.load("img/meteor.png"))
+        for i in range(360):
+            self.images.append(pygame.transform.rotate(self.images[0], (i + 1)))
+        self.image = self.images[self.index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.health = 3
+        self.alive = True
+        self.flip = False
+
+    def update(self):
+        self.check_alive()
+        self.index = (self.index + 1) % 360
+        self.image = self.images[self.index]
+        self.rect.y += random.randint(5, 8)
+        self.rect.x += random.randint(3, 7)
+
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            self.health -= 3
+            # reduce spaceship health
+            if spaceship.timereset < 0:
+                explosion_fx.play()
+                spaceship.remaining -= 3
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 3)
+                explosion_group.add(explosion)
+
+        for boom in boom_group:
+            if pygame.sprite.spritecollide(self, boom_group, True):
+                explosion_fx.play()
+                explosions = Explosions(boom.rect.centerx, boom.rect.centery, 4)
+                explosions_group.add(explosions)
+                for meteor in meteor_group:
+                    if abs(meteor.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor.rect.centery - boom.rect.centery) < 350:
+                        meteor.health -= 10
+                for meteor1 in meteor_group1:
+                    if abs(meteor1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor1.rect.centery - boom.rect.centery) < 350:
+                        meteor1.health -= 10
+                for enemy in enemy_group:
+                    if enemy.timereset < 0:
+                        if abs(enemy.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                enemy.rect.centery - boom.rect.centery) < 350:
+                            enemy.health -= 10
+                for enemy1 in enemy_group1:
+                    if enemy1.timereset < 0:
+                        if abs(enemy1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                enemy1.rect.centery - boom.rect.centery) < 350:
+                            enemy1.health -= 10
+                for boss in boss_group:
+                    if boss.timereset < 0:
+                        if abs(boss.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                boss.rect.centery - boom.rect.centery) < 350:
+                            boss.remaining -= 100
+                for boss1 in boss1_group:
+                    if boss1.timereset < 0:
+                        if abs(boss1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                boss1.rect.centery - boom.rect.centery) < 350:
+                            boss1.remaining -= 100
+            if boom.time <= 1:
+                if abs(self.rect.centerx - boom.rect.centerx) < 350 and abs(
+                        self.rect.centery - boom.rect.centery) < 350:
+                    self.health -= 10
+
+        if pygame.sprite.spritecollide(self, bullet_group, True, pygame.sprite.collide_mask):
+            self.health -= spaceship.damage
+
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+    def reset(self):
+        self.rect.x = random.randint(screen_width * -2, screen_width * -2)
+        self.rect.y -= random.randint(2000, 2500)
+        self.health = 3
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Meteors(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.images = []
+        self.index = 0
+        self.images.append(pygame.image.load("img/meteor2.png"))
+        for i in range(360):
+            self.images.append(pygame.transform.rotate(self.images[0], (i + 1)))
+        self.image = self.images[self.index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.health = 3
+        self.alive = True
+        self.flip = False
+        self.direction_x = 1
+        self.direction_y = 1
+
+    def update(self):
+        self.check_alive()
+        self.index = (self.index + 1) % 360
+        self.image = self.images[self.index]
+        dx = 0
+        dy = 0
+        dy += 5 * self.direction_y
+        dx += 5 * self.direction_x
+
+        if self.rect.right + dx > screen_width:
+            dx = screen_width - self.rect.right
+            self.direction_x *= -1
+        if self.rect.left + dx < 0:
+            dx = - self.rect.left
+            self.direction_x *= -1
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            self.health -= 3
+            # reduce spaceship health
+            if spaceship.timereset < 0:
+                explosion_fx.play()
+                spaceship.remaining -= 3
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 3)
+                explosion_group.add(explosion)
+        if pygame.sprite.spritecollide(self, bullet_group, True, pygame.sprite.collide_mask):
+            self.health -= spaceship.damage
+
+        for boom in boom_group:
+            if pygame.sprite.spritecollide(self, boom_group, True):
+                explosion_fx.play()
+                explosions = Explosions(boom.rect.centerx, boom.rect.centery, 4)
+                explosions_group.add(explosions)
+                for meteor in meteor_group:
+                    if abs(meteor.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor.rect.centery - boom.rect.centery) < 350:
+                        meteor.health -= 10
+                for meteor1 in meteor_group1:
+                    if abs(meteor1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor1.rect.centery - boom.rect.centery) < 350:
+                        meteor1.health -= 10
+                for enemy in enemy_group:
+                    if enemy.timereset < 0:
+                        if abs(enemy.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                enemy.rect.centery - boom.rect.centery) < 350:
+                            enemy.health -= 10
+                for enemy1 in enemy_group1:
+                    if enemy1.timereset < 0:
+                        if abs(enemy1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                enemy1.rect.centery - boom.rect.centery) < 350:
+                            enemy1.health -= 10
+                for boss in boss_group:
+                    if boss.timereset < 0:
+                        if abs(boss.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                boss.rect.centery - boom.rect.centery) < 350:
+                            boss.remaining -= 100
+                for boss1 in boss1_group:
+                    if boss1.timereset < 0:
+                        if abs(boss1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                boss1.rect.centery - boom.rect.centery) < 350:
+                            boss1.remaining -= 100
+            if boom.time <= 1:
+                if abs(self.rect.centerx - boom.rect.centerx) < 350 and abs(
+                        self.rect.centery - boom.rect.centery) < 350:
+                    self.health -= 10
+
+        if self.rect.y > screen_height + 100 or self.health <= 0:
+            self.reset()
+
+        self.rect.x += dx
+        self.rect.y += dy
+
+    def reset(self):
+        self.rect.x = random.randint(100, 500)
+        self.rect.y = random.randint(-3600, -3400)
+        self.health = 3
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Enemies(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.alive = True
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0
+        self.update_time = pygame.time.get_ticks()
+        self.last_enemy_shoot = pygame.time.get_ticks()
+        self.health = 2
+        self.timer = 30
+        self.timereset = 100
+        self.last_enemy_shot = pygame.time.get_ticks()
+
+        # load all images for the players
+        animation_types = ['Idle', 'Death']
+        for animation in animation_types:
+            # reset temporary list of images
+            temp_list = []
+            # count number of files in the folder
+            num_of_frames = len(os.listdir(f'img/chick2/{animation}'))
+            for i in range(num_of_frames):
+                img = pygame.image.load(f'img/chick2/{animation}/{i}.png')
+                img = pygame.transform.scale(img, (int(img.get_width()), int(img.get_height())))
+                temp_list.append(img)
+            self.animation_list.append(temp_list)
+
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.move_counter = 0
+        self.move_direction = 1
+        self.flip = False
+
+    def update(self):
+        self.check_alive()
+        self.update_animation()
+        if pygame.sprite.spritecollide(self, bullet_group, True, pygame.sprite.collide_mask):
+            if self.timereset < 0:
+                self.health -= spaceship.damage
+                if spaceship.crit > 0:
+                    if random.randint(spaceship.crit, 100) == 100:
+                        self.health -= spaceship.damage * 2
+        for boom in boom_group:
+            if pygame.sprite.spritecollide(self, boom_group, True):
+                explosion_fx.play()
+                explosions = Explosions(boom.rect.centerx, boom.rect.centery, 4)
+                explosions_group.add(explosions)
+                for enemy in enemy_group:
+                    if enemy.timereset < 0:
+                        if abs(enemy.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                enemy.rect.centery - boom.rect.centery) < 350:
+                            enemy.health -= 10
+                for meteor in meteor_group:
+                    if abs(meteor.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor.rect.centery - boom.rect.centery) < 350:
+                        meteor.health -= 10
+                for meteor1 in meteor_group1:
+                    if abs(meteor1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor1.rect.centery - boom.rect.centery) < 350:
+                        meteor1.health -= 10
+            if boom.time <= 1:
+                if self.timereset < 0:
+                    if abs(self.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            self.rect.centery - boom.rect.centery) < 350:
+                        self.health -= 10
+
+        if self.alive == False and random.randint(1, 20) == 1:
+            Bonus = [Item1, Item2, Item3, Item4, Item0]
+            bonus = random.choice(Bonus)(self.rect.centerx, self.rect.centery)
+            item_group.add(bonus)
+
+    def move(self):
+        dx = 0
+        dx += self.move_direction * 3
+        self.move_counter += 1
+        if abs(self.move_counter) > 30:
+            self.move_direction *= -1
+            self.move_counter *= self.move_direction
+        if self.move_direction == 1:
+            self.flip = False
+        if self.move_direction == -1:
+            self.flip = True
+        self.rect.x += dx
+
+    def shoot(self):
+        time_now = pygame.time.get_ticks()
+        enemy_cooldown = 1000
+        if time_now - self.last_enemy_shot > enemy_cooldown and len(enemy_bullet_group) < 6 and len(enemy_group) > 0:
+            attacking_enemy = random.choice(enemy_group.sprites())
+            enemy_bullet = Enemies_Bullets(attacking_enemy.rect.centerx, attacking_enemy.rect.bottom)
+            enemy_bullet_group.add(enemy_bullet)
+            self.last_enemy_shot = time_now
+
+    def update_animation(self):
+        # update animation
+        ANIMATION_COOLDOWN = 100
+        # update image depending on current frame
+        self.image = self.animation_list[self.action][self.frame_index]
+        # check if enough time has passed since the last update
+        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
+            self.update_time = pygame.time.get_ticks()
+            self.frame_index += 1
+        # if the animation has run out the reset back to the start
+        if self.frame_index >= len(self.animation_list[self.action]):
+            if self.action == 1:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+
+    def update_action(self, new_action):
+        # check if the new action is different to the previous one
+        if new_action != self.action:
+            self.action = new_action
+            # update the animation settings
+            self.frame_index = 0
+            self.update_time = pygame.time.get_ticks()
+
+    def auto_walk(self):
+        dy = 0
+        self.timer -= 1
+        dy += 1
+        self.timereset -= 1
+        if self.timer <= 0:
+            self.timer = 0
+            self.rect.y -= 0.5
+        self.rect.y += dy
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+            self.kill()
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Enemies1(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.alive = True
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0
+        self.update_time = pygame.time.get_ticks()
+        self.last_enemy_shoot = pygame.time.get_ticks()
+        self.health = 5
+        self.timer = 350
+        self.timereset = 400
+        self.last_enemy_shot = pygame.time.get_ticks()
+
+        # load all images for the players
+        animation_types = ['Idle', 'Death']
+        for animation in animation_types:
+            # reset temporary list of images
+            temp_list = []
+            # count number of files in the folder
+            num_of_frames = len(os.listdir(f'img/chick1/{animation}'))
+            for i in range(num_of_frames):
+                img = pygame.image.load(f'img/chick1/{animation}/{i}.png')
+                img = pygame.transform.scale(img, (int(img.get_width()), int(img.get_height())))
+                temp_list.append(img)
+            self.animation_list.append(temp_list)
+
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.move_counter = 0
+        self.move_direction = 1
+        self.flip = False
+
+    def update(self):
+        self.check_alive()
+        self.update_animation()
+        if pygame.sprite.spritecollide(self, bullet_group, True, pygame.sprite.collide_mask):
+            if self.timereset < 0:
+                self.health -= spaceship.damage
+                if spaceship.crit > 0:
+                    if random.randint(spaceship.crit, 100) == 100:
+                        self.health -= spaceship.damage * 2
+        for boom in boom_group:
+            if pygame.sprite.spritecollide(self, boom_group, True):
+                explosion_fx.play()
+                explosions = Explosions(boom.rect.centerx, boom.rect.centery, 4)
+                explosions_group.add(explosions)
+                for enemy1 in enemy_group1:
+                    if enemy1.timereset < 0:
+                        if abs(enemy1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                                enemy1.rect.centery - boom.rect.centery) < 350:
+                            enemy1.health -= 10
+                for meteor in meteor_group:
+                    if abs(meteor.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor.rect.centery - boom.rect.centery) < 350:
+                        meteor.health -= 10
+                for meteor1 in meteor_group1:
+                    if abs(meteor1.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            meteor1.rect.centery - boom.rect.centery) < 350:
+                        meteor1.health -= 10
+            if boom.time <= 1:
+                if self.timereset < 0:
+                    if abs(self.rect.centerx - boom.rect.centerx) < 350 and abs(
+                            self.rect.centery - boom.rect.centery) < 350:
+                        self.health -= 10
+        if self.alive == False and random.randint(1, 20) == 1:
+            Bonus1 = [Item1, Item2, Item3, Item4, Item0]
+            bonus1 = random.choice(Bonus1)(self.rect.centerx, self.rect.centery)
+            item_group.add(bonus1)
+
+    def move(self):
+        dx = 0
+        dx += self.move_direction * 3
+        self.move_counter += 1
+        if abs(self.move_counter) > 30:
+            self.move_direction *= -1
+            self.move_counter *= self.move_direction
+        if self.move_direction == 1:
+            self.flip = False
+        if self.move_direction == -1:
+            self.flip = True
+        self.rect.x += dx
+
+    def shoot(self):
+        time_now = pygame.time.get_ticks()
+        enemy_cooldown = 1000
+        if time_now - self.last_enemy_shot > enemy_cooldown and len(enemy_bullet_group1) < 6 and len(enemy_group1) > 0:
+            attacking_enemy = random.choice(enemy_group1.sprites())
+            enemy_bullet = Enemies_Bullets1(attacking_enemy.rect.centerx, attacking_enemy.rect.bottom)
+            enemy_bullet_group1.add(enemy_bullet)
+            self.last_enemy_shot = time_now
+
+    def update_animation(self):
+        # update animation
+        ANIMATION_COOLDOWN = 100
+        # update image depending on current frame
+        self.image = self.animation_list[self.action][self.frame_index]
+        # check if enough time has passed since the last update
+        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
+            self.update_time = pygame.time.get_ticks()
+            self.frame_index += 1
+        # if the animation has run out the reset back to the start
+        if self.frame_index >= len(self.animation_list[self.action]):
+            if self.action == 1:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+
+    def update_action(self, new_action):
+        # check if the new action is different to the previous one
+        if new_action != self.action:
+            self.action = new_action
+            # update the animation settings
+            self.frame_index = 0
+            self.update_time = pygame.time.get_ticks()
+
+    def auto_walk(self):
+        dy = 0
+        if not enemy.alive:
+            self.timer -= 1
+            dy += 1.5
+            self.timereset -= 1
+            if self.timer <= 0:
+                self.timer = 0
+                self.rect.y -= 0.5
+        self.rect.y += dy
+
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.alive = False
+            self.kill()
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+
+class Enemies_Bullets(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load(f'img/3.png')
+        self.image = pygame.transform.scale(img, (int(img.get_width() * 0.05), int(img.get_height() * 0.05)))
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+
+    def update(self):
+        self.rect.y += 3
+        if self.rect.bottom > screen_height:
+            self.kill()
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            if spaceship.timereset < 0:
+                self.kill()
+                explosion_fx.play()
+                # reduce spaceship health
+                spaceship.remaining -= 1
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+
+
+class Enemies_Bullets1(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load(f'img/4.png')
+        self.image = pygame.transform.scale(img, (int(img.get_width() * 0.05), int(img.get_height() * 0.05)))
+        self.rect = self.image.get_rect()
+        self.rect.center = [x, y]
+
+    def update(self):
+        self.rect.y += 3
+        if self.rect.bottom > screen_height:
+            self.kill()
+        if pygame.sprite.spritecollide(self, spaceship_group, False, pygame.sprite.collide_mask):
+            if spaceship.timereset < 0:
+                self.kill()
+                explosion_fx.play()
+                # reduce spaceship health
+                spaceship.remaining -= 1
+                explosion = Explosion(self.rect.centerx, self.rect.centery, 2)
+                explosion_group.add(explosion)
+
+
+enemy_group = pygame.sprite.Group()
+enemy_group1 = pygame.sprite.Group()
+enemy_bullet_group = pygame.sprite.Group()
+enemy_bullet_group1 = pygame.sprite.Group()
+
+
+def create_enemies():
+    # generate aliens
+    for i in range(6):
+        for j in range(5):
+            enemy = Enemies(110 + i * 80, 20 + j * 70)
+            enemy_group.add(enemy)
+    for i in range(5):
+        for j in range(5):
+            enemy1 = Enemies1(110 + i * 100, -650 + j * 150)
+            enemy_group1.add(enemy1)
+
+
+create_enemies()
+
+box = Box(300, -1500)
+box_group = pygame.sprite.Group()
+box_group.add(box)
+
+meteor = Meteor(-1400, -2700)
+meteor1 = Meteors(100, -5700)
+meteor_group = pygame.sprite.Group()
+meteor_group.add(meteor)
+meteor_group1 = pygame.sprite.Group()
+meteor_group1.add(meteor1)
+
+boom_group = pygame.sprite.Group()
+explosions_group = pygame.sprite.Group()
+explosion_group = pygame.sprite.Group()
+
+item0 = Item0(100, -5000)
+item2 = Item2(200, -7000)
+item1 = Item1(400, -90000)
+item3 = Item3(500, -11000)
+item4 = Item4(500, -13000)
+item_group = pygame.sprite.Group()
+item_group.add(item2, item1, item0, item3, item4)
+
+bullet_group = pygame.sprite.Group()
+boss_bullet_group = pygame.sprite.Group()
+boss1_bullet_group = pygame.sprite.Group()
+
+boss_group = pygame.sprite.Group()
+boss1_group = pygame.sprite.Group()
+boss1 = Boss1(int(screen_width / 2), screen_height - 750, 1)
+boss1_group.add(boss1)
+boss = Boss(int(screen_width / 2), screen_height - 800, 1.5)
+boss_group.add(boss)
+
+spaceship_group = pygame.sprite.Group()
+spaceship = Spaceship(int(screen_width / 2), screen_height - 100, 0.6, 5)
+spaceship_group.add(spaceship)
+
+start_button = button.Button(screen_width // 2 - 130, screen_height // 2 - 150, start_img, 0.5)
+exit_button = button.Button(screen_width // 2 - 130, screen_height // 2 + 50, exit_img, 0.5)
+continue_button = button.Button(screen_width // 2 - 130, screen_height // 2 - 150, continue_img, 0.5)
+resume_button = button.Button(screen_width // 2 - 130, screen_height // 2 - 150, resume_img, 0.5)
+back_button = button.Button(screen_width // 2 - 130, screen_height // 2 - 50, back_img, 0.5)
+control_button = button.Button(screen_width // 2 - 130, screen_height // 2 - 50, control_img, 0.5)
+arrow1_button = button.Button(screen_width // 2 - 250, screen_height // 2 - 50, arrow1_img, 0.5)
+arrow2_button = button.Button(screen_width // 2 + 220, screen_height // 2 - 50, arrow2_img, 0.5)
+
+run = True
+while run:
+    clock.tick(fps)
+    if start_game == -1:
+        draw_bg()
+        page = 0
+        pygame.mixer.music.stop()
+        if start_button.draw(screen):
+            start_game = 1
+            stop_game = False
+            pygame.mixer.music.load('img/m' + str(random.randint(1, 5)) + '.wav')
+            pygame.mixer.music.set_volume(0.6)
+            pygame.mixer.music.play(-1, 0.0)
+        if exit_button.draw(screen):
+            run = False
+        if control_button.draw(screen):
+            start_game = 0
+            stop_game = False
+    if start_game == 0:
+        screen.fill(colorList)
+        flash_time1 += 1
+        if flash_time1 < 20:
+            draw_text('Press Esc To Continue', font, black, 190, 550)
+        elif flash_time1 > 40:
+            flash_time1 = 0
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    start_game = -1
+                    color1 = random.randint(50, 200)
+                    color2 = random.randint(50, 200)
+                    color3 = random.randint(50, 200)
+                    colorList = [color1, color2, color3]
+                if event.key == pygame.K_LEFT:
+                    page -= 1
+                    color1 = random.randint(50, 200)
+                    color2 = random.randint(50, 200)
+                    color3 = random.randint(50, 200)
+                    colorList = [color1, color2, color3]
+                if event.key == pygame.K_RIGHT:
+                    page += 1
+                    color1 = random.randint(50, 200)
+                    color2 = random.randint(50, 200)
+                    color3 = random.randint(50, 200)
+                    colorList = [color1, color2, color3]
+        if arrow1_button.draw(screen):
+            page -= 1
+            color1 = random.randint(50, 200)
+            color2 = random.randint(50, 200)
+            color3 = random.randint(50, 200)
+            colorList = [color1, color2, color3]
+        if arrow2_button.draw(screen):
+            page += 1
+            color1 = random.randint(50, 200)
+            color2 = random.randint(50, 200)
+            color3 = random.randint(50, 200)
+            colorList = [color1, color2, color3]
+        if page < 0:
+            page = 3
+            color1 = random.randint(50, 200)
+            color2 = random.randint(50, 200)
+            color3 = random.randint(50, 200)
+            colorList = [color1, color2, color3]
+        if page > 3:
+            page = 0
+            color1 = random.randint(50, 200)
+            color2 = random.randint(50, 200)
+            color3 = random.randint(50, 200)
+            colorList = [color1, color2, color3]
+        if page == 0:
+            draw_text('How to play', font_big, black, 240, 50)
+            draw_text('Move Up:                W', font_big, black, 170, 150)
+            draw_text('Move Down:            S', font_big, black, 170, 200)
+            draw_text('Move Left:              A', font_big, black, 170, 250)
+            draw_text('Move Right:            D', font_big, black, 170, 300)
+            draw_text('Shoot:                 Space', font_big, black, 170, 350)
+            draw_text('Boom:                    F', font_big, black, 170, 400)
+            draw_text('Pause:                    P', font_big, black, 170, 450)
+        if page == 1:
+            screen.blit(box_img, (160, 80))
+            draw_text(': Random Item', font_big, black, 225, 85)
+            screen.blit(item0_img, (160, 155))
+            draw_text(': Bonus Damage', font_big, black, 225, 160)
+            screen.blit(item1_img, (160, 230))
+            draw_text(': Bonus Fire Rate', font_big, black, 225, 235)
+            screen.blit(item2_img, (160, 305))
+            draw_text(': Bonus Health', font_big, black, 225, 310)
+            screen.blit(item3_img, (160, 380))
+            draw_text(': Bonus Boom', font_big, black, 225, 385)
+            screen.blit(item4_img, (160, 455))
+            draw_text(': Bonus Critical', font_big, black, 225, 460)
+        if page == 2:
+            screen.blit(chick1_img, (185, 90))
+            draw_text(': Small Enemy', font_big, black, 280, 110)
+            screen.blit(chick2_img, (180, 230))
+            draw_text(': Big Enemy', font_big, black, 280, 265)
+            screen.blit(meteor_img, (170, 400))
+            draw_text(': Meteor', font_big, black, 280, 430)
+        if page == 3:
+            screen.blit(boss1_img, (135, 50))
+            draw_text(': Boss', font_big, black, 350, 120)
+            screen.blit(boss2_img, (120, 310))
+            draw_text(': Final Boss', font_big, black, 350, 400)
+    if start_game == 1:
+        if stop_game == False:
+            if game_over == False:
+                draw_bg1()
+                draw_text('Live: ', font, white, 10, 615)
+                for x in range(spaceship.live):
+                    screen.blit(heart_img, (60 + (x * 30), 610))
+                draw_text('Boom: ', font, white, 380, 615)
+                for x in range(spaceship.special):
+                    screen.blit(boom_img, (450 + (x * 30), 595))
+                box.update()
+                box.draw()
+                item_group.update()
+                item_group.draw(screen)
+                enemy_group.update()
+                enemy_group1.update()
+                enemy_bullet_group.update()
+                enemy_bullet_group1.update()
+                enemy_group.draw(screen)
+                enemy_group1.draw(screen)
+                enemy_bullet_group.draw(screen)
+                enemy_bullet_group1.draw(screen)
+                spaceship.update()
+                boss1_bullet_group.update()
+                boss1_group.draw(screen)
+                boss1_bullet_group.draw(screen)
+                spaceship_group.draw(screen)
+                bullet_group.update()
+                bullet_group.draw(screen)
+                item_group.update()
+                item_group.draw(screen)
+                boss_group.draw(screen)
+                boss_bullet_group.update()
+                boss_bullet_group.draw(screen)
+                explosion_group.update()
+                explosion_group.draw(screen)
+                explosions_group.update()
+                explosions_group.draw(screen)
+                boom_group.update()
+                boom_group.draw(screen)
+                meteor_group.draw(screen)
+                meteor_group.update()
+                meteor_group1.draw(screen)
+                meteor_group1.update()
+
+                for enemy in enemy_group:
+                    if enemy.alive:
+                        enemy.auto_walk()
+                        if enemy.timereset <= 0:
+                            enemy.draw()
+                            enemy.move()
+                            enemy.shoot()
+                for enemy1 in enemy_group1:
+                    if enemy1.alive:
+                        enemy1.auto_walk()
+                        if enemy1.timereset <= 0:
+                            enemy1.draw()
+                            enemy1.move()
+                            enemy1.shoot()
+
+                if spaceship.alive:
+                    spaceship.auto_walk()
+                    if spaceship.timereset < 100:
+                        spaceship.shoot()
+                        spaceship.fire()
+                        if moving_left or moving_right or moving_up or moving_down:
+                            spaceship.update_action(0)  # 1: run
+                        spaceship.move(moving_left, moving_right, moving_up, moving_down)
+
+                if spaceship.remaining <= 0 and spaceship.live > 0:
+                    spaceship.reset()
+                    spaceship.update()
+                    spaceship.live -= 1
+                if spaceship.live == 0:
+                    game_over = True
+                    lose_fx.play()
+
+                if boss1.alive:
+                    boss1.auto_walk()
+                    boss1.update()
+                    boss1.update_action(0)
+                    if boss1.timereset < 0:
+                        boss1.move()
+                        boss1.shoot()
+                    if boss1.remaining <= 0:
+                        boss1.kill()
+
+                if boss.alive:
+                    boss.auto_walk()
+                    boss.update()
+                    if boss.timereset < 0:
+                        boss.move()
+                        boss.shoot()
+                else:
+                    item_group.empty()
+                    box_group.empty()
+                    meteor_group.empty()
+                    meteor_group1.empty()
+                    boss.time -= 1
+                    timebossdie += 1
+                    if boss.time > 0:
+                        if timebossdie < 20:
+                            screen.blit(boss.image, (boss.rect.x, boss.rect.y))
+                        elif timebossdie > 40:
+                            timebossdie = 0
+                    if boss.time <= 0:
+                        boss.kill()
+                    if -5 < boss.time <= 0:
+                        explosion_fx.play()
+                        explosion = Explosion(boss.rect.centerx, boss.rect.centery, 6)
+                        explosion_group.add(explosion)
+
+                if not boss.alive and boss.time <= 0:
+                    time -= 1
+                    flash_time += 1
+                    if time > 0:
+                        win_fx.play()
+                    pygame.mixer.music.stop()
+                    spaceship.alive = False
+                    if time <= 0:
+                        timereturn -= 1
+                        draw_bg3()
+                        draw_text('You Win!!!', font_big, white, 235, 250)
+                        if flash_time < 20:
+                            draw_text('Press Any Thing To Continue', font, white, 155, 350)
+                        elif flash_time > 40:
+                            flash_time = 0
+                        if timereturn <= 0:
+                            for event in pygame.event.get():
+                                if event.type == pygame.QUIT:
+                                    run = False
+                                if event.type == pygame.KEYDOWN:
+                                    spaceship.alive = True
+                                    start_game = -1
+                                    bg = pygame.image.load("img/bg/bg" + str(random.randint(1, 7)) + ".png")
+                                    spaceship.rect.x = int(screen_width / 2) - 25
+                                    spaceship.rect.y = screen_height - 75
+                                    spaceship.cooldown = 500
+                                    spaceship.crit = 0
+                                    spaceship.live = 5
+                                    spaceship.timer = 30
+                                    spaceship.timereset = 200
+                                    spaceship.damage = 1
+                                    spaceship.health = 5
+                                    spaceship.remaining = 5
+                                    spaceship.special = 50
+                                    boom_group.empty()
+                                    item_group.empty()
+                                    bullet_group.empty()
+                                    box_group.empty()
+                                    meteor_group.empty()
+                                    meteor_group1.empty()
+                                    explosions_group.empty()
+                                    explosion_group.empty()
+                                    enemy_group.empty()
+                                    enemy_bullet_group.empty()
+                                    enemy_group1.empty()
+                                    enemy_bullet_group1.empty()
+                                    for i in range(6):
+                                        for j in range(5):
+                                            enemy = Enemies(110 + i * 80, 20 + j * 70)
+                                            enemy_group.add(enemy)
+
+                                    for i in range(5):
+                                        for j in range(5):
+                                            enemy1 = Enemies1(110 + i * 100, -650 + j * 150)
+                                            enemy_group1.add(enemy1)
+                                    box = Box(300, -1500)
+                                    box_group.add(box)
+
+                                    meteor = Meteor(-1400, -2700)
+                                    meteor1 = Meteors(100, -5700)
+                                    meteor_group.add(meteor)
+                                    meteor_group1.add(meteor1)
+                                    item0 = Item0(100, -5000)
+                                    item2 = Item2(200, -7000)
+                                    item1 = Item1(400, -90000)
+                                    item3 = Item3(500, -11000)
+                                    item4 = Item4(500, -13000)
+                                    item_group.add(item2, item1, item0, item3, item4)
+                                    boss1_group.empty()
+                                    boss1_bullet_group.empty()
+                                    boss1 = Boss1(int(screen_width / 2), screen_height - 750, 1)
+                                    boss1_group.add(boss1)
+                                    boss1.health = 200
+                                    boss1.remaining = 200
+                                    boss1.timer = 150
+                                    boss1.live = 1
+                                    boss1.timereset = 150
+                                    boss_group.empty()
+                                    boss_bullet_group.empty()
+                                    boss = Boss(int(screen_width / 2), screen_height - 800, 1.5)
+                                    boss_group.add(boss)
+                                    boss.health = 200
+                                    boss.remaining = 200
+                                    boss.timer = 200
+                                    boss.live = 3
+                                    boss.timereset = 200
+                                    time = 500
+                                    timereturn = 100
+                                    flash_time = 0
+                                    pygame.mixer.music.load('img/m' + str(random.randint(1, 5)) + '.wav')
+                                    pygame.mixer.music.set_volume(0.6)
+                                    pygame.mixer.music.play(-1, 0.0)
+                                    color1 = random.randint(0, 255)
+                                    color2 = random.randint(0, 255)
+                                    color3 = random.randint(0, 255)
+                                    colorList = [color1, color2, color3]
+            else:
+                bg = pygame.image.load("img/bg/bg" + str(random.randint(1, 7)) + ".png")
+                draw_bg2()
+                if continue_button.draw(screen):
+                    # reset variables
+                    game_over = False
+                    spaceship.rect.x = int(screen_width / 2) - 25
+                    spaceship.rect.y = screen_height - 75
+                    spaceship.cooldown = 500
+                    spaceship.crit = 0
+                    spaceship.live = 5
+                    spaceship.damage = 1
+                    spaceship.timer = 30
+                    spaceship.timereset = 200
+                    spaceship.health = 5
+                    spaceship.remaining = 5
+                    spaceship.special = 50
+
+                if back_button.draw(screen):
+                    start_game = -1
+                    game_over = False
+                    bg = pygame.image.load("img/bg/bg" + str(random.randint(1, 7)) + ".png")
+                    spaceship.rect.x = int(screen_width / 2) - 25
+                    spaceship.rect.y = screen_height - 75
+                    spaceship.cooldown = 500
+                    spaceship.crit = 0
+                    spaceship.live = 5
+                    spaceship.timer = 30
+                    spaceship.timereset = 200
+                    spaceship.damage = 1
+                    spaceship.health = 5
+                    spaceship.remaining = 5
+                    spaceship.special = 50
+                    boom_group.empty()
+                    item_group.empty()
+                    bullet_group.empty()
+                    box_group.empty()
+                    meteor_group.empty()
+                    meteor_group1.empty()
+                    explosions_group.empty()
+                    explosion_group.empty()
+                    enemy_group.empty()
+                    enemy_bullet_group.empty()
+                    enemy_group1.empty()
+                    enemy_bullet_group1.empty()
+                    for i in range(6):
+                        for j in range(5):
+                            enemy = Enemies(110 + i * 80, 20 + j * 70)
+                            enemy_group.add(enemy)
+
+                    for i in range(5):
+                        for j in range(5):
+                            enemy1 = Enemies1(110 + i * 100, -650 + j * 150)
+                            enemy_group1.add(enemy1)
+                    box = Box(300, -1500)
+                    box_group.add(box)
+
+                    meteor = Meteor(-1400, -2700)
+                    meteor1 = Meteors(100, -5700)
+                    meteor_group.add(meteor)
+                    meteor_group1.add(meteor1)
+                    item0 = Item0(100, -5000)
+                    item2 = Item2(200, -7000)
+                    item1 = Item1(400, -90000)
+                    item3 = Item3(500, -11000)
+                    item4 = Item4(500, -13000)
+                    item_group.add(item2, item1, item0, item3, item4)
+                    boss1_group.empty()
+                    boss1_bullet_group.empty()
+                    boss1 = Boss1(int(screen_width / 2), screen_height - 750, 1)
+                    boss1_group.add(boss1)
+                    boss1.health = 200
+                    boss1.remaining = 200
+                    boss1.timer = 150
+                    boss1.live = 1
+                    boss1.timereset = 150
+                    boss_group.empty()
+                    boss_bullet_group.empty()
+                    boss = Boss(int(screen_width / 2), screen_height - 800, 1.5)
+                    boss_group.add(boss)
+                    boss.health = 200
+                    boss.remaining = 200
+                    boss.timer = 200
+                    boss.live = 3
+                    boss.timereset = 200
+                    pygame.mixer.music.load('img/m' + str(random.randint(1, 5)) + '.wav')
+                    pygame.mixer.music.set_volume(0.6)
+                    pygame.mixer.music.play(-1, 0.0)
+                if exit_button.draw(screen):
+                    run = False
+
+        else:
+            draw_bg2()
+            if resume_button.draw(screen):
+                stop_game = False
+            if back_button.draw(screen):
+                start_game = -1
+                bg = pygame.image.load("img/bg/bg" + str(random.randint(1, 7)) + ".png")
+                spaceship.rect.x = int(screen_width / 2) - 25
+                spaceship.rect.y = screen_height - 75
+                spaceship.cooldown = 500
+                spaceship.crit = 0
+                spaceship.live = 5
+                spaceship.remaining = 5
+                spaceship.damage = 1
+                spaceship.health = 5
+                spaceship.timer = 30
+                spaceship.timereset = 200
+                spaceship.special = 50
+                boom_group.empty()
+                item_group.empty()
+                bullet_group.empty()
+                box_group.empty()
+                meteor_group.empty()
+                meteor_group1.empty()
+                explosions_group.empty()
+                explosion_group.empty()
+                enemy_group.empty()
+                enemy_bullet_group.empty()
+                enemy_group1.empty()
+                enemy_bullet_group1.empty()
+                for i in range(6):
+                    for j in range(5):
+                        enemy = Enemies(110 + i * 80, 20 + j * 70)
+                        enemy_group.add(enemy)
+
+                for i in range(5):
+                    for j in range(5):
+                        enemy1 = Enemies1(110 + i * 100, -650 + j * 150)
+                        enemy_group1.add(enemy1)
+                box = Box(300, -1500)
+                box_group.add(box)
+
+                meteor = Meteor(-1400, -2700)
+                meteor1 = Meteors(100, -5700)
+                meteor_group.add(meteor)
+                meteor_group1.add(meteor1)
+                item0 = Item0(100, -5000)
+                item2 = Item2(200, -7000)
+                item1 = Item1(400, -90000)
+                item3 = Item3(500, -11000)
+                item4 = Item4(500, -13000)
+                item_group.add(item2, item1, item0, item3, item4)
+                boss1_group.empty()
+                boss1_bullet_group.empty()
+                boss1 = Boss1(int(screen_width / 2), screen_height - 750, 1)
+                boss1_group.add(boss1)
+                boss1.health = 200
+                boss1.remaining = 200
+                boss1.timer = 150
+                boss1.live = 1
+                boss1.timereset = 150
+                boss_group.empty()
+                boss_bullet_group.empty()
+                boss = Boss(int(screen_width / 2), screen_height - 800, 1.5)
+                boss_group.add(boss)
+                boss.health = 200
+                boss.remaining = 200
+                boss.timer = 200
+                boss.live = 3
+                boss.timereset = 200
+                pygame.mixer.music.load('img/m' + str(random.randint(1, 5)) + '.wav')
+                pygame.mixer.music.set_volume(0.6)
+                pygame.mixer.music.play(-1, 0.0)
+    for event in pygame.event.get():
+        # quit game
+        if event.type == pygame.QUIT:
+            run = False
+        # keyboard presses
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_a:
+                moving_left = True
+            if event.key == pygame.K_d:
+                moving_right = True
+            if event.key == pygame.K_w:
+                moving_up = True
+            if event.key == pygame.K_s:
+                moving_down = True
+            if event.key == pygame.K_ESCAPE:
+                start_game = -1
+            if event.key == pygame.K_p and boss.live >= 1:
+                stop_game = True
+
+        # keyboard button released
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_a:
+                moving_left = False
+            if event.key == pygame.K_d:
+                moving_right = False
+            if event.key == pygame.K_w:
+                moving_up = False
+            if event.key == pygame.K_s:
+                moving_down = False
+
+    pygame.display.update()
+
+pygame.quit()
